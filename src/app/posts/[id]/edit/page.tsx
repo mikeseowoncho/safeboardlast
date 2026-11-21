@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import PostForm from "@/components/PostForm";
 import { getSession } from "@/lib/auth/session";
 import { getPostDetail } from "@/lib/services/posts";
+import { unescapeHtml } from "@/lib/security/escape";
 
 export const metadata: Metadata = { title: "글 수정" };
 
@@ -22,7 +23,7 @@ export default async function EditPostPage({ params }: { params: Promise<{ id: s
     <PostForm
       mode="edit"
       postId={post.id}
-      initial={{ title: post.title, content: post.content, isSecret: post.isSecret }}
+      initial={{ title: unescapeHtml(post.title), content: unescapeHtml(post.content), isSecret: post.isSecret }}
     />
   );
 }
