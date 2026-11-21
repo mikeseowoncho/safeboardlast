@@ -4,6 +4,7 @@ import { User } from "@/lib/models/User";
 import { DUMMY_HASH, verifyPassword } from "@/lib/auth/password";
 import { issueNewSession } from "@/lib/auth/session";
 import { ensureDefaultAdmin } from "@/lib/auth/bootstrap";
+import { validateLoginPassword, validateUsername } from "@/lib/security/validate";
 import {
   clearLoginFailures,
   getLockRemainingSeconds,
@@ -16,12 +17,9 @@ const LOCKED_MESSAGE = (seconds: number) =>
 export const POST = handle(async (req) => {
   const body = await readJson(req);
 
-  // [NoSQL Injection 차단] 아이디/비밀번호는 반드시 "문자열"이어야 한다.
-  // {"username": {"$ne": null}} 같은 연산자 객체는 이 검증에서 400 으로 거절된다.
-  // [미구현] 입력값 검증 없이 요청에 담긴 값을 그대로 사용한다. (타입·형식 검사 없음)
-  const rawUsername = body.username as string;
-  const username = typeof rawUsername === "string" ? rawUsername.trim().toLowerCase() : rawUsername;
-  const password = body.password as string;
+  // [NoSQL Injection 1차 차단] 아이디/비밀번호가 문자열이 아니면(예: {"$ne": null}) 400 으로 거절한다.
+  const username = validateUsername(body.username);
+  const password = validateLoginPassword(body.password);
 
   // [무작위 대입 차단] 이미 잠긴 아이디라면 비밀번호 검사조차 하지 않고 거절
   const lockedFor = await getLockRemainingSeconds(username);

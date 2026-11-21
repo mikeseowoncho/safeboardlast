@@ -7,10 +7,10 @@
 - **기술 스택**: Next.js (App Router) · React · TypeScript · MongoDB(Mongoose) · bcryptjs
 - **개발 환경**: VS Code, Node.js 20.9 이상
 
-> ⚠️ **현재 상태: 인젝션 · XSS · CSRF 방어는 아직 구현하지 않았습니다.**
-> 세 가지 방어는 일부러 꺼 둔 상태이므로 이 코드는 **의도적으로 취약**합니다.
+> ⚠️ **현재 상태: NoSQL 인젝션 · XSS 방어는 구현 완료되었으나, CSRF 방어는 아직 구현하지 않았습니다.**
+> CSRF 방어는 일부러 꺼 둔 상태이므로 이 코드는 **CSRF 공격에 취약**합니다.
 > 로컬(`localhost`)에서만 실행하고, 인터넷에 배포하거나 외부에서 접속할 수 있게 열어 두지 마세요.
-> 꺼 둔 위치에는 코드에 `[미구현]` 주석이 달려 있어 검색(`Ctrl+Shift+F` → `[미구현]`)으로 바로 찾을 수 있습니다.
+> 미구현 위치에는 코드에 `[미구현]` 주석이 달려 있어 검색(`Ctrl+Shift+F` → `[미구현]`)으로 바로 찾을 수 있습니다.
 
 ---
 
@@ -34,8 +34,8 @@
 
 | 보안 기능 | 현황 | 내용 | 파일 |
 |---|---|---|---|
-| NoSQL 인젝션 방어 | ❌ **미구현** | 입력값 타입 검사 없음, Mongoose `sanitizeFilter` 꺼짐, 검색어 이스케이프 없음 | `lib/security/validate.ts`, `lib/db.ts`, `lib/services/posts.ts`, `api/auth/login/route.ts` |
-| XSS 방어 | ❌ **미구현** | 저장 전 특수문자 치환 없음, 제목·본문·댓글을 HTML 그대로 출력(`dangerouslySetInnerHTML`), CSP 헤더 없음 | `lib/services/posts.ts`, `app/board/page.tsx`, `app/posts/[id]/page.tsx`, `components/CommentSection.tsx`, `src/proxy.ts` |
+| NoSQL 인젝션 방어 | ✅ 구현 | 로그인 요청 본문 문자열 타입 검사, Mongoose `sanitizeFilter` 전역 활성화, 검색어 정규식 메타문자 이스케이프(`escapeRegex`) 적용 | `lib/security/validate.ts`, `lib/db.ts`, `lib/services/posts.ts`, `api/auth/login/route.ts` |
+| XSS 방어 | ✅ 구현 | 저장 전 HTML 특수문자 이스케이프(`escapeHtml`), `dangerouslySetInnerHTML` 제거 및 안전한 텍스트 출력, 요청별 Nonce 기반 CSP 헤더 적용 | `lib/services/posts.ts`, `app/board/page.tsx`, `app/posts/[id]/page.tsx`, `components/CommentSection.tsx`, `src/proxy.ts` |
 | CSRF 방어 | ❌ **미구현** | CSRF 토큰·Origin 검증 없음, 쿠키 `SameSite` 미지정 | `lib/auth/session.ts`, `api/auth/logout/route.ts` |
 | 비밀번호 해시 | ✅ 구현 | bcrypt(cost 12, 솔트 자동 포함). 조회 시 기본 제외(`select:false`) | `lib/auth/password.ts`, `lib/models/User.ts` |
 | 안전한 세션 | ✅ 구현 | HttpOnly 쿠키(`COOKIE_SECURE=true` 시 Secure), 로그인마다 새 세션 토큰 발급, DB 에는 토큰 해시만 저장, 2시간 만료(TTL 인덱스) | `lib/auth/session.ts`, `lib/models/Session.ts` |
@@ -46,7 +46,7 @@
 | 보안 응답 헤더 | ✅ 구현 | `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`, `X-Powered-By` 제거 | `next.config.ts` |
 | 입력 길이·빈 값 검사 | ✅ 구현 | 아이디 4~20자(영문 소문자·숫자·밑줄), 비밀번호 8~64자(영문+숫자), 제목 100 / 내용 5000 / 댓글 500자 (회원가입·글·댓글) | `lib/security/validate.ts` |
 
-> 인젝션·XSS·CSRF 는 방어 코드를 제거했을 뿐 파일(`lib/security/escape.ts`, `lib/security/csrf.ts` 등)은 남아 있습니다. 나중에 구현할 때 이 파일들과 `[미구현]` 주석을 참고하세요.
+> CSRF 는 방어 코드를 제거했을 뿐 파일(`lib/security/csrf.ts` 등)은 남아 있습니다. 나중에 구현할 때 이 파일과 `[미구현]` 주석을 참고하세요.
 > 프로젝트에는 파일 업로드 기능이 없어서 업로드 검증은 해당하지 않습니다.
 
 ---
@@ -58,7 +58,7 @@
 1. **Node.js 20.9 이상** 설치 (`node -v` 로 확인, [nodejs.org](https://nodejs.org) LTS)
 2. 저장소를 받습니다.
    ```bash
-   git clone https://github.com/k35864316-spec/safeboard.git
+   git clone [https://github.com/k35864316-spec/safeboard.git](https://github.com/k35864316-spec/safeboard.git)
    cd safeboard
    ```
 3. VS Code 에서 `safeboard` 폴더를 엽니다. (**파일 → 폴더 열기**)
@@ -117,19 +117,17 @@ npm run dev        # 개발 서버 → http://localhost:3000  (메인 소개 페
 
 ---
 
-## 4. 현재 상태에서 확인할 수 있는 동작 (미구현 방어 시연)
+## 4. 보안 방어 검증 및 미구현 동작 확인
 
-방어가 꺼져 있으므로 아래가 **그대로 통과**합니다. 로컬에서만 확인하세요.
+로컬 환경에서 구현된 방어(XSS · NoSQL 인젝션)의 차단 여부와 미구현 방어(CSRF)의 동작을 확인할 수 있습니다.
 
-- **XSS**: 로그인 후 글쓰기에서 내용에 `<script>alert('xss')</script>` 를 입력하고 저장한 뒤 글을 열면 경고창이 뜹니다.
-- **CSRF**: 로그인한 상태에서 브라우저 Console 에 아래를 실행하면 CSRF 토큰 없이도 글이 작성됩니다.
+- **XSS (차단됨)**: 로그인 후 글쓰기·댓글에 `<script>alert('xss')</script>` 를 입력해도 경고창이 실행되지 않고 텍스트 문자열 그대로 출력됩니다. 응답 헤더에는 요청별 일회용 `nonce` 가 포함된 `Content-Security-Policy` 가 적용됩니다.
+- **NoSQL 인젝션 (차단됨)**: 로그인 요청에 `{ "$ne": null }` 객체를 전송하면 `400 Bad Request` 로 차단되며, 검색창에 `.*` 또는 `[` 같은 정규식 메타문자를 입력해도 리터럴 문자로 이스케이프되어 안전하게 검색됩니다.
+- **CSRF (미구현 — 통과됨)**: 방어가 꺼져 있으므로 로그인한 상태에서 브라우저 Console 에 아래를 실행하면 CSRF 토큰 없이도 글이 작성됩니다. (추후 CSRF 방어 구현 후 `403` 차단 확인 필요)
   ```js
   fetch("/api/posts", { method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ title: "위조", content: "토큰 없음" }) }).then(r => console.log(r.status))
   ```
-- **인젝션**: 로그인 요청의 아이디에 `{ "$ne": null }` 같은 객체를 보내도 서버가 형식 오류(400)로 거절하지 않고 쿼리까지 그대로 전달합니다.
-
-방어를 구현한 뒤에는 위 요청이 각각 막히는지(경고창 없음 / 403 / 400) 확인하면 됩니다.
 
 ---
 
@@ -141,7 +139,7 @@ safeboard/
 │  ├─ seed.ts                   # 개발용 계정 생성 (게시글은 만들지 않음)
 │  └─ check-db.mjs              # npm run dev 시작 전 MongoDB 연결 점검
 ├─ src/
-│  ├─ proxy.ts                  # (CSP 헤더 — 현재 미구현, 아무 것도 하지 않음)
+│  ├─ proxy.ts                  # 요청별 Nonce 발급 및 CSP(Content-Security-Policy) 헤더 적용
 │  ├─ app/
 │  │  ├─ page.tsx               # 메인 소개 페이지 (/)
 │  │  ├─ board/                 # 게시판: 목록 · 검색 · 페이징 · 조회수 · 글쓰기 버튼
@@ -155,21 +153,21 @@ safeboard/
 │  │     └─ comments/           # 댓글 삭제
 │  ├─ components/               # Header · Landing(소개) · 폼 · 댓글 · 페이징 등
 │  └─ lib/
-│     ├─ db.ts                  # MongoDB 연결
+│     ├─ db.ts                  # MongoDB 연결 (sanitizeFilter 활성화)
 │     ├─ api.ts                 # API 공통 래퍼(에러 숨김)
 │     ├─ securityTopics.ts      # 소개 페이지 카드 내용
 │     ├─ models/                # User · Post(조회수 포함) · Comment · Session · LoginAttempt
 │     ├─ auth/                  # password · session · rateLimit
-│     ├─ security/              # escape · validate · csrf (일부 방어는 현재 꺼져 있음)
-│     └─ services/posts.ts      # 게시글/댓글 로직 (작성자 확인, 비밀글, 조회수)
+│     ├─ security/              # escape · validate (적용 완료) · csrf (미구현)
+│     └─ services/posts.ts      # 게시글/댓글 로직 (작성자 확인, 비밀글, 조회수, 검색어 이스케이프)
 ```
 
 ---
 
 ## 6. 한계와 개선 아이디어
 
-- **인젝션 · XSS · CSRF 방어 구현**: 현재 가장 먼저 해야 할 일입니다. 입력값 타입 검사와 `sanitizeFilter`, 저장·출력 이스케이프와 CSP, CSRF 토큰과 `SameSite` 쿠키가 대표적인 방어입니다.
+- **CSRF 방어 구현**: NoSQL 인젝션·XSS 방어는 적용되었으며, 남은 CSRF 방어를 위해 CSRF 토큰 검증과 세션 쿠키의 `SameSite` 속성을 추가해야 합니다.
 - **로그인 차단 기준이 “아이디”**라서, 공격자가 특정 계정을 일부러 잠가버릴 수 있습니다(계정 잠금 DoS). 실서비스에서는 IP·기기 정보나 CAPTCHA 를 함께 씁니다.
 - **조회수**는 새로고침할 때마다, 댓글을 쓰거나 지울 때도 올라갑니다. 사람당 한 번만 세는 중복 방지는 없습니다.
-- **HTTPS 배포 시** `.env.local` 에 `COOKIE_SECURE=true` 를 설정해 세션 쿠키에 `Secure` 속성을 붙이세요. (배포는 방어 구현 후에 하세요)
+- **HTTPS 배포 시** `.env.local` 에 `COOKIE_SECURE=true` 를 설정해 세션 쿠키에 `Secure` 속성을 붙이세요. (배포는 모든 방어 구현 후에 하세요)
 - 이메일 인증, 비밀번호 재설정, 파일 업로드, 관리자 페이지 등은 범위에서 제외했습니다.

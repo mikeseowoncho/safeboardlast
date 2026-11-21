@@ -5,6 +5,7 @@ import CommentSection from "@/components/CommentSection";
 import DeletePostButton from "@/components/DeletePostButton";
 import { getSession } from "@/lib/auth/session";
 import { formatDate } from "@/lib/format";
+import { unescapeHtml } from "@/lib/security/escape";
 import { getComments, getPostDetail, incrementViews } from "@/lib/services/posts";
 
 export const metadata: Metadata = { title: "게시글" };
@@ -43,7 +44,7 @@ export default async function PostPage({ params }: { params: Promise<{ id: strin
           <>
             <h1 className="post-heading">
               {post.isSecret && <span aria-label="비밀글">🔒 </span>}
-              <span dangerouslySetInnerHTML={{ __html: post.title }} />
+              <span>{unescapeHtml(post.title)}</span>
             </h1>
             <div className="post-meta muted">
               <span>{post.authorName}</span>
@@ -51,8 +52,8 @@ export default async function PostPage({ params }: { params: Promise<{ id: strin
               <span>조회 {post.views}</span>
               {post.updatedAt !== post.createdAt && <span>(수정됨 {formatDate(post.updatedAt)})</span>}
             </div>
-            {/* [미구현] XSS 방어 없음: 본문을 HTML 그대로 출력한다 */}
-            <div className="post-content" dangerouslySetInnerHTML={{ __html: post.content }} />
+            {/* [XSS 출력 방어] DB에 치환 저장된 값을 복원한 뒤 React 텍스트 노드로만 출력한다 */}
+            <div className="post-content">{unescapeHtml(post.content)}</div>
           </>
         )}
 

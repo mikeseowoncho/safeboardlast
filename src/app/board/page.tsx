@@ -5,6 +5,7 @@ import Pagination from "@/components/Pagination";
 import { getSession } from "@/lib/auth/session";
 import { formatDate } from "@/lib/format";
 import { LIMITS } from "@/lib/limits";
+import { unescapeHtml } from "@/lib/security/escape";
 import { firstParam, parsePage, parseSearch } from "@/lib/security/validate";
 import { PAGE_SIZE, listPosts } from "@/lib/services/posts";
 
@@ -64,8 +65,8 @@ export default async function BoardPage({ searchParams }: { searchParams: Search
               <span className="post-no muted">{total - (page - 1) * PAGE_SIZE - i}</span>
               <Link href={`/posts/${post.id}`} className={post.locked ? "post-title locked" : "post-title"}>
                 {post.isSecret && <span aria-label="비밀글">🔒 </span>}
-                {/* [미구현] XSS 방어 없음: 제목을 HTML 그대로 출력한다 */}
-                <span dangerouslySetInnerHTML={{ __html: post.title }} />
+                {/* [XSS 출력 방어] DB에 치환 저장된 제목을 복원한 뒤 React 텍스트 노드로 출력한다 */}
+                <span>{unescapeHtml(post.title)}</span>
               </Link>
               <span className="post-author">{post.authorName}</span>
               <span className="post-views muted">조회 {post.views}</span>

@@ -5,11 +5,12 @@ import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { apiRequest } from "@/lib/clientApi";
 import { LIMITS } from "@/lib/limits";
+import { unescapeHtml } from "@/lib/security/escape";
 import { useAuth } from "@/components/AuthProvider";
 
 export type CommentView = {
   id: string;
-  content: string; // 서버에서 원래 글자로 되돌린 값. 아래에서 반드시 React 텍스트({})로만 출력한다.
+  content: string;
   authorName: string;
   isMine: boolean;
   createdAt: string; // 서버에서 미리 포맷한 문자열
@@ -72,9 +73,8 @@ export default function CommentSection({ postId, comments }: { postId: string; c
                   </button>
                 )}
               </div>
-              {/* 텍스트 노드로만 출력 → React 가 출력 시점에 한 번 더 이스케이프한다 */}
-              {/* [미구현] XSS 방어 없음: 댓글을 HTML 그대로 출력한다 */}
-              <p className="comment-body" dangerouslySetInnerHTML={{ __html: c.content }} />
+              {/* [XSS 출력 방어] DB에 치환 저장된 댓글을 복원한 뒤 React 텍스트 노드로만 출력한다 */}
+              <p className="comment-body">{unescapeHtml(c.content)}</p>
             </li>
           ))}
         </ul>

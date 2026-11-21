@@ -2,8 +2,9 @@ import mongoose from "mongoose";
 
 const MONGODB_URI = process.env.MONGODB_URI ?? "mongodb://127.0.0.1:27017/safeboard";
 
-// [미구현] NoSQL Injection 2차 방어(sanitizeFilter)는 꺼져 있다. 쿼리 조건에 섞인 $ 연산자를 그대로 해석한다.
+// [NoSQL Injection 2차 방어] 쿼리 조건에 섞인 $ 연산자를 무력화한다. (의도한 연산자만 mongoose.trusted 로 허용)
 mongoose.set("strictQuery", true);
+mongoose.set("sanitizeFilter", true);
 
 type Cache = { conn: typeof mongoose | null; promise: Promise<typeof mongoose> | null };
 const globalForMongoose = globalThis as unknown as { _safeboardMongoose?: Cache };
@@ -25,5 +26,5 @@ export async function connectDB() {
   return cache.conn;
 }
 
-/** (sanitizeFilter 를 껐으므로 지금은 효과가 없다. 나중에 다시 켜도 코드가 동작하도록 남겨 둔다) */
+/** sanitizeFilter 활성화 시 의도적으로 사용하는 MongoDB 연산자($regex, $or 등)만 신뢰 처리한다. */
 export const trusted = mongoose.trusted;

@@ -3,6 +3,7 @@ import { connectDB, trusted } from "@/lib/db";
 import { HttpError } from "@/lib/api";
 import { Post } from "@/lib/models/Post";
 import { Comment } from "@/lib/models/Comment";
+import { escapeHtml, escapeRegex } from "@/lib/security/escape";
 import type { SessionUser } from "@/lib/auth/session";
 
 export const PAGE_SIZE = 10;
@@ -30,8 +31,8 @@ type LeanComment = {
 };
 
 /*
- * 아래 view 타입의 title/content/authorName 은 "치환(escape)된 상태 그대로"이다.
- * 화면에서 보여줄 때는 unescapeHtml() 로 되돌린 뒤 React 텍스트로만 출력한다.
+- 아래 view 타입의 title/content/authorName 은 "치환(escape)된 상태 그대로"이다.
+- 화면에서 보여줄 때는 unescapeHtml() 로 되돌린 뒤 React 텍스트로만 출력한다.
  */
 export type PostListItem = {
   id: string;
@@ -77,13 +78,8 @@ export async function listPosts(opts: { page: number; q: string; viewer: Session
 
   const clauses: Record<string, unknown>[] = [];
   if (q) {
-    // [미구현] 검색어를 이스케이프하지 않고 그대로 정규식으로 사용한다. (잘못된 정규식이면 결과 없음)
-    let re: RegExp;
-    try {
-      re = new RegExp(q, "i");
-    } catch {
-      re = /(?!)/;
-    }
+    // [NoSQL Injection 방어] 검색어의 정규식 메타문자를 이스케이프해 정규식 인젝션 및 ReDoS를 차단한다.
+    const re = new RegExp(escapeRegex(q), "i");
     clauses.push({ $or: [{ title: trusted({ $regex: re }) }, { content: trusted({ $regex: re }) }] });
     // 검색 결과로 비밀글의 존재/내용이 추측되지 않도록, 볼 수 없는 비밀글은 검색 대상에서 제외한다.
     if (viewer?.role !== "admin") {
@@ -141,8 +137,8 @@ export async function getPostDetail(id: string, viewer: SessionUser | null): Pro
 }
 
 /**
- * [조회수] 글 상세를 열 때마다 1 증가시킨다. ($inc 는 DB 에서 원자적으로 처리되어 동시에 열어도 누락되지 않는다)
- * 볼 권한이 없는 비밀글은 호출하지 않는다.
+- [조회수] 글 상세를 열 때마다 1 증가시킨다. ($inc 는 DB 에서 원자적으로 처리되어 동시에 열어도 누락되지 않는다)
+- 볼 권한이 없는 비밀글은 호출하지 않는다.
  */
 export async function incrementViews(id: string) {
   await connectDB();
@@ -167,9 +163,9 @@ export async function createPost(
 ): Promise<string> {
   await connectDB();
   const post = await Post.create({
-    // [미구현] XSS 방어(저장 전 특수문자 치환) 없음. 입력한 값을 그대로 저장한다.
-    title: input.title,
-    content: input.content,
+    // [XSS 방어 - 입력 치환] 특수기호를 HTML 엔티티로 치환해 저장한다.
+    title: escapeHtml(input.title),
+    content: escapeHtml(input.content),
     isSecret: input.isSecret,
     author: user.id,
     authorName: user.username,
@@ -188,8 +184,8 @@ export async function updatePost(
   if (!post) throw new HttpError(404, "존재하지 않는 게시글입니다.");
   if (String(post.author) !== user.id) throw new HttpError(403, "작성자 본인만 수정할 수 있습니다.");
 
-  post.title = input.title;
-  post.content = input.content;
+  post.title = escapeHtml(input.title);
+  post.content = escapeHtml(input.content);
   post.isSecret = input.isSecret;
   await post.save();
 }
@@ -213,7 +209,7 @@ export async function addComment(postId: string, user: SessionUser, content: str
 
   const comment = await Comment.create({
     post: postId,
-    content,
+    content: escapeHtml(content),
     author: user.id,
     authorName: user.username,
   });

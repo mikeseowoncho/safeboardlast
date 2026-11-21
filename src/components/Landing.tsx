@@ -3,8 +3,6 @@ import { TOPICS } from "@/lib/securityTopics";
 
 // 아직 구현하지 않은 보안 기능: 카드는 보이되 "미구현" 으로 표시한다.
 const PENDING: Record<string, string> = {
-  injection: "입력값 검증 · 인젝션 방어는 아직 구현하지 않았습니다. 구현 예정입니다.",
-  xss: "XSS 방어는 아직 구현하지 않았습니다. 구현 예정입니다.",
   csrf: "CSRF 방어는 아직 구현하지 않았습니다. 구현 예정입니다.",
 };
 

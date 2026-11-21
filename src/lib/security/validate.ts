@@ -5,11 +5,14 @@ import { LIMITS } from "@/lib/limits";
 const USERNAME_RE = /^[a-z0-9_]+$/;
 
 /**
- * [미구현] NoSQL Injection 방어 - 문자열 타입 강제
- * 지금은 입력값의 타입을 검사하지 않고 그대로 통과시킨다. (객체가 들어와도 막지 않는다)
+  NoSQL Injection 방어 - 문자열 타입 강제
+
  */
-export function requireString(value: unknown, _label: string): string {
-  return value as string;
+export function requireString(value: unknown, label: string): string {
+  if (typeof value !== "string") {
+    throw new HttpError(400, `${label} 형식이 올바르지 않습니다.`);
+  }
+  return value;
 }
 
 /** 아이디: 영문 소문자/숫자/밑줄 4~20자 (대문자는 소문자로 정규화) */
